@@ -62,12 +62,17 @@ class TopFeeds:
 
         return self.__articles
 
-    def fetch_articles(self, content=False):
+    def fetch_articles(self, max_len=None, content=False, markdown=False):
         """To fetch all the topfeeds articles information (multithreading)
 
         Args:
+            max_len (int, optional): Maximum number of articles to fetch
+
             content (bool, optional): Set it to `True` if you want to fetch the 
                 textual content of the article as well. Otherwise, default is `False`.
+
+            markdown (bool, optional): Set it to `True` if you want to fetch the markdown of 
+                the article as well. Otherwise, default is `False`
 
         Returns:
             None: All the fetched information will be access via topfeeds.articles.
@@ -75,4 +80,4 @@ class TopFeeds:
             ``topfeeds.articles[0].title``
             ``topfeeds.articles[1].claps``
         """
-        self.__fetch_articles(self.articles, content=content)
+        self.__fetch_articles(self.articles, max_len=max_len, content=content, markdown=markdown)

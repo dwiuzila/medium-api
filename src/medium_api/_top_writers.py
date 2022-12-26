@@ -59,8 +59,11 @@ class TopWriters:
         
         return self.__users
 
-    def fetch_users(self):
+    def fetch_users(self, max_len=None):
         """To fetch top writers (user) related information
+
+        Args:
+            max_len (int, optional): Maximum number of users to fetch
 
         Returns:
             None: All the fetched information will be access via top_writers.users.
@@ -68,4 +71,4 @@ class TopWriters:
             ``top_writers.users[0].fullname``
             ``top_writers.users[1].bio``
         """
-        self.__fetch_users(self.users)
+        self.__fetch_users(self.users, max_len=max_len)

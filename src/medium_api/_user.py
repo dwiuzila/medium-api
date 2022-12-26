@@ -311,20 +311,25 @@ class User:
             print(f"[ERROR]: Could not retrieve {e} for the given user_id ({self.user_id}). Please check if this user exists.")
             print(f"[ERROR]: Link to unknown user's profile: https://medium.com/u/{self.user_id}")
 
-    def fetch_articles(self, content=False):
+    def fetch_articles(self, max_len=None, content=False, markdown=False):
         """To fetch all the user-written articles information and content
 
         Args:
+            max_len (int, optional): Maximum number of articles to fetch
+
             content (bool, optional): Set it to `True` if you want to fetch the 
                 textual content of the article as well. Otherwise, default is `False`.
 
+            markdown (bool, optional): Set it to `True` if you want to fetch the markdown of 
+                the article as well. Otherwise, default is `False`
+                
         Returns:
             None: All the fetched information will be access via `user.articles`.
 
             ``user.articles[0].title``
             ``user.articles[1].claps``
         """
-        self.__fetch_articles(self.articles, content=content)
+        self.__fetch_articles(self.articles, max_len=max_len, content=content, markdown=markdown)
 
     def fetch_top_articles(self, content=False):
         """To fetch top 10 user-written top articles information and content

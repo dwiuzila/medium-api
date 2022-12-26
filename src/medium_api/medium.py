@@ -313,8 +313,8 @@ class Medium:
 
         return resp['related_tags']
 
-    def fetch_articles(self, articles:list, max_len:int = None, content:bool = False):
-        """To quickly fetch articles (info and content) using multithreading
+    def fetch_articles(self, articles:list, max_len:int = None, content:bool = False, markdown:bool = False):
+        """To quickly fetch articles (info, content, and markdown) using multithreading
 
             Typical usage example:
 
@@ -323,13 +323,15 @@ class Medium:
             ``medium.fetch_articles(list_of_articles_obj)``
 
         Args:
-
             articles (list[Article]): List of (empty) Article objects to fill information 
-                (and content) into it.
+                (and content and markdown) into it.
 
             max_len (int, optional): Maximum number of articles to fetch
 
             content (bool, optional): Set it to `True` if you want to fetch the content of 
+                the article as well. Otherwise, default is `False`
+            
+            markdown (bool, optional): Set it to `True` if you want to fetch the markdown of 
                 the article as well. Otherwise, default is `False`
 
         Returns:
@@ -341,6 +343,8 @@ class Medium:
             future_to_url = [executor.submit(article.save_info) for article in articles[:max_len] if article.title is None]
             if content:
                 future_to_url += [executor.submit(article.save_content) for article in articles[:max_len]]
+            if markdown:
+                future_to_url += [executor.submit(article.save_markdown) for article in articles[:max_len]]
 
             for future in as_completed(future_to_url):
                 future.result()
@@ -354,7 +358,6 @@ class Medium:
             ``medium.fetch_users(list_of_users_obj)``
 
         Args:
-
             users (list[User]): List of (empty) User objects to fill information into it.
 
             max_len (int, optional): Maximum number of users to fetch

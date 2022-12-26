@@ -313,7 +313,7 @@ class Medium:
 
         return resp['related_tags']
 
-    def fetch_articles(self, articles:list, content:bool = False):
+    def fetch_articles(self, articles:list, max_len:int = None, content:bool = False):
         """To quickly fetch articles (info and content) using multithreading
 
             Typical usage example:
@@ -327,7 +327,9 @@ class Medium:
             articles (list[Article]): List of (empty) Article objects to fill information 
                 (and content) into it.
 
-            content(bool, optional): Set it to `True` if you want to fetch the content of 
+            max_len (int, optional): Maximum number of articles to fetch
+
+            content (bool, optional): Set it to `True` if you want to fetch the content of 
                 the article as well. Otherwise, default is `False`
 
         Returns:
@@ -336,14 +338,14 @@ class Medium:
 
         """
         with ThreadPoolExecutor(max_workers=100) as executor:
-            future_to_url = [executor.submit(article.save_info) for article in articles if article.title is None]
+            future_to_url = [executor.submit(article.save_info) for article in articles[:max_len] if article.title is None]
             if content:
-                future_to_url += [executor.submit(article.save_content) for article in articles]
+                future_to_url += [executor.submit(article.save_content) for article in articles[:max_len]]
 
             for future in as_completed(future_to_url):
                 future.result()
 
-    def fetch_users(self, users:list):
+    def fetch_users(self, users:list, max_len:int = None):
         """To quickly fetch users info using multithreading
 
             Typical usage example:
@@ -355,13 +357,15 @@ class Medium:
 
             users (list[User]): List of (empty) User objects to fill information into it.
 
+            max_len (int, optional): Maximum number of users to fetch
+
         Returns:
             None: This method doesn't return anything since it fills the values into the 
             passed list of User(s) objects itself.
 
         """
         with ThreadPoolExecutor(max_workers=100) as executor:
-            future_to_url = (executor.submit(user.save_info) for user in users if user.fullname is None)
+            future_to_url = (executor.submit(user.save_info) for user in users[:max_len] if user.fullname is None)
 
             for future in as_completed(future_to_url):
                 future.result()

@@ -689,7 +689,7 @@ class Medium:
     # Extra Functions
 
     def fetch_articles(self, articles:list, content:bool = False, markdown:bool = False, 
-                       html:bool = False, html_fullpage:bool = True, html_style_file:str = SAMPLE_STYLE_FILE, max_len:int = None):
+                       html:bool = False, html_fullpage:bool = True, html_style_file:str = SAMPLE_STYLE_FILE):
         """To quickly fetch articles (info, content, markdown, html) using multithreading
 
             Typical usage example:
@@ -699,13 +699,11 @@ class Medium:
             ``medium.fetch_articles(list_of_articles_obj)``
 
         Args:
-            articles (list[Article]): List of (empty) Article objects to fill information 
-                (and content and markdown) into it.
 
-            content (bool, optional): Set it to `True` if you want to fetch the content of 
-                the article as well. Otherwise, default is `False`
-            
-            markdown (bool, optional): Set it to `True` if you want to fetch the markdown of 
+            articles (list[Article]): List of (empty) Article objects to fill information 
+                (and content) into it.
+
+            content(bool, optional): Set it to `True` if you want to fetch the content of 
                 the article as well. Otherwise, default is `False`
 
             markdown(bool, optional): Set it to `True` if you want to fetch the markdown of 
@@ -717,8 +715,6 @@ class Medium:
             html_fullpage(bool, optional): Set it to `False` if you only want to fetch the HTML 
                 inside body tag of the article. Otherwise, default is `True`, which fetches the 
                 entire HTML of the article.
-            
-            max_len (int, optional): Maximum number of articles to fetch
 
         Returns:
             None: This method doesn't return anything since it fills the values in the passed
@@ -728,63 +724,7 @@ class Medium:
         with ThreadPoolExecutor(max_workers=10) as executor:
             future_to_url = [executor.submit(article.save_info) for article in articles if article.title is None]
             if content:
-                future_to_url += [executor.submit(article.save_content) for article in articles[:max_len]]
-            if markdown:
-                future_to_url += [executor.submit(article.save_markdown) for article in articles[:max_len]]
-
-            if markdown:
-                future_to_url += [executor.submit(article.save_markdown) for article in articles]
-
-            if html:
-                future_to_url += [executor.submit(article.save_html, html_fullpage, html_style_file) for article in articles]
-
-            for future in as_completed(future_to_url):
-                future.result()
-    
-    def fetch_publications(self, publications:list):
-        """To quickly fetch publications' info using multithreading
-
-            Typical usage example:
-
-            ``medium.fetch_publications(user.publications)``
-            ``medium.fetch_publications(list_of_publications_obj)``
-
-        Args:
-
-            publications (list[Publication]): List of (empty) Publications objects to fill information into it.
-
-        Returns:
-            None: This method doesn't return anything since it fills the values in the passed
-            list of Publication(s) objects itself.
-
-        """
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            future_to_url = [executor.submit(publication.save_info) for publication in publications if publication.name is None]
-
-            for future in as_completed(future_to_url):
-                future.result()
-
-    def fetch_lists(self, medium_lists:list):
-        """To quickly fetch Medium List related info using multithreading
-
-            Typical usage example:
-
-            ``medium.fetch_lists(user.lists)``
-            ``medium.fetch_lists(arr_of_medium_list_objs)``
-
-        Args:
-
-            medium_lists (list[MediumList]): An array of (empty) `MediumList` objects to fill information into it.
-
-        Returns:
-            None: This method doesn't return anything since it fills the values in the passed
-            array of MediumList(s) objects itself.
-
-        """
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            future_to_url = [executor.submit(medium_list.save_info) 
-                             for medium_list in medium_lists 
-                             if medium_list.name is None]
+                future_to_url += [executor.submit(article.save_content) for article in articles]
 
             if markdown:
                 future_to_url += [executor.submit(article.save_markdown) for article in articles]
@@ -843,7 +783,7 @@ class Medium:
             for future in as_completed(future_to_url):
                 future.result()
 
-    def fetch_users(self, users:list, max_len:int = None):
+    def fetch_users(self, users:list):
         """To quickly fetch users' info using multithreading
 
             Typical usage example:
@@ -852,9 +792,8 @@ class Medium:
             ``medium.fetch_users(list_of_users_obj)``
 
         Args:
-            users (list[User]): List of (empty) User objects to fill information into it.
 
-            max_len (int, optional): Maximum number of users to fetch
+            users (list[User]): List of (empty) User objects to fill information into it.
 
         Returns:
             None: This method doesn't return anything since it fills the values into the 
@@ -862,7 +801,7 @@ class Medium:
 
         """
         with ThreadPoolExecutor(max_workers=10) as executor:
-            future_to_url = (executor.submit(user.save_info) for user in users[:max_len] if user.fullname is None)
+            future_to_url = (executor.submit(user.save_info) for user in users if user.fullname is None)
 
             for future in as_completed(future_to_url):
                 future.result()

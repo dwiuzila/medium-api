@@ -545,7 +545,7 @@ class User:
             print(f"[ERROR]: Could not retrieve user for the given user_id ({self.user_id}). Please check if this user exists.")
             print(f"[ERROR]: Link to unknown user's profile: https://medium.com/u/{self.user_id}")
 
-    def fetch_articles(self, content=False, markdown=False, html=False, html_fullpage=True, html_style_file=SAMPLE_STYLE_FILE, max_len=None):
+    def fetch_articles(self, content=False, markdown=False, html=False, html_fullpage=True, html_style_file=SAMPLE_STYLE_FILE):
         """To fetch all the user-written articles information and content
 
         Args:
@@ -561,8 +561,6 @@ class User:
             html_fullpage(bool, optional): Set it to `False` if you only want to fetch the HTML 
                 inside body tag of the article. Otherwise, default is `True`, which fetches the 
                 entire HTML of the article.
-            
-            max_len (int, optional): Maximum number of articles to fetch
 
         Returns:
             None: All the fetched information will be access via `user.articles`.
@@ -576,8 +574,7 @@ class User:
                     markdown=markdown, 
                     html=html, 
                     html_fullpage=html_fullpage,
-                    html_style_file=html_style_file,
-                    max_len=max_len
+                    html_style_file=html_style_file
                 )
 
     def fetch_publications(self, admin_in=True, writer_in=True):
@@ -692,4 +689,3 @@ class User:
             r += f"({self.username})"
 
         return f"<User: {r}>"
-

@@ -4,6 +4,10 @@ Publication Module
 from functools import lru_cache
 from datetime import datetime
 from medium_api._user import User
+
+
+SAMPLE_STYLE_FILE = 'https://mediumapi.com/styles/dark.css'
+
 class Newsletter:
     """Newsletter Class
     
@@ -19,11 +23,14 @@ class Newsletter:
         See :obj:`medium_api.medium.Medium.publication.newsletter`.
 
     """
-    def __init__(self, publication_id, get_resp, fetch_articles, fetch_users, save_info=False):
+    def __init__(self, publication_id, get_resp, fetch_articles, fetch_users, fetch_publications, fetch_lists, save_info=False):
         self.publication_id = publication_id
         self.__get_resp = get_resp
+        
         self.__fetch_articles = fetch_articles
         self.__fetch_users = fetch_users
+        self.__fetch_publications = fetch_publications
+        self.__fetch_lists = fetch_lists
 
         self.__info = None
 
@@ -73,7 +80,10 @@ class Newsletter:
         self.creator = User(user_id=newsletter['creator_id'], 
                             get_resp=self.__get_resp, 
                             fetch_articles=self.__fetch_articles, 
-                            fetch_users=self.__fetch_users
+                            fetch_users=self.__fetch_users,
+                            fetch_publications=self.__fetch_publications,
+                            fetch_lists=self.__fetch_lists,
+                            save_info=False
                         )
 
 class Publication:
@@ -92,15 +102,16 @@ class Publication:
         See :obj:`medium_api.medium.Medium.publication`.
 
     """
-    def __init__(self, publication_id, get_resp, fetch_articles, fetch_users, save_info=False):
+    def __init__(self, publication_id, get_resp, fetch_articles, fetch_users, fetch_publications, fetch_lists, save_info=False):
         self.publication_id = str(publication_id)
         self.__get_resp = get_resp
         self.__fetch_articles = fetch_articles
         self.__fetch_users = fetch_users
+        self.__fetch_publications = fetch_publications
+        self.__fetch_lists = fetch_lists
 
         self.name = None
         self.description = None
-        self.url = None
         self.tagline = None
         self.followers = None
         self.slug = None
@@ -116,6 +127,8 @@ class Publication:
                                      get_resp = self.__get_resp,
                                      fetch_articles = self.__fetch_articles,
                                      fetch_users = self.__fetch_users,
+                                     fetch_publications=self.__fetch_publications,
+                                     fetch_lists=self.__fetch_lists,
                                      save_info=False)
 
         self.__info = None
@@ -160,7 +173,6 @@ class Publication:
 
                 - ``publication.name``
                 - ``publication.description``
-                - ``publication.url``
                 - ``publication.tagline``
                 - ``publication.followers``
                 - ``publication.slug``
@@ -175,31 +187,38 @@ class Publication:
         """
         publication = self.info
 
-        self.name = publication['name']
-        self.description = publication['description']
-        self.url = publication['url']
-        self.tagline = publication['tagline']
-        self.followers = publication['followers']
-        self.slug = publication['slug']
-        self.tags = publication['tags']
-        self.domain = publication['domain']
-        self.twitter_username = publication['twitter_username']
-        self.instagram_username = publication['instagram_username']
-        self.facebook_pagename = publication['facebook_pagename']
+        self.name = publication.get('name')
+        self.description = publication.get('description')
+        self.tagline = publication.get('tagline')
+        self.followers = publication.get('followers')
+        self.slug = publication.get('slug')
+        self.tags = publication.get('tags')
+        self.domain = publication.get('domain')
+        self.twitter_username = publication.get('twitter_username')
+        self.instagram_username = publication.get('instagram_username')
+        self.facebook_pagename = publication.get('facebook_pagename')
 
         self.creator = User(user_id=publication['creator'], 
                             get_resp=self.__get_resp, 
                             fetch_articles=self.__fetch_articles, 
                             fetch_users=self.__fetch_users, 
-                            save_info=True
-                        )
+                            fetch_publications=self.__fetch_publications,
+                            fetch_lists=self.__fetch_lists,
+                            save_info=False
+                        ) if publication.get('creator') else None
 
         self.editors = [User(user_id=editor_id, 
                             get_resp=self.__get_resp, 
                             fetch_articles=self.__fetch_articles, 
                             fetch_users=self.__fetch_users, 
-                            save_info=True
-                        ) for editor_id in publication['editors']]
+                            fetch_publications=self.__fetch_publications,
+                            fetch_lists=self.__fetch_lists,
+                            save_info=False
+                        ) for editor_id in publication.get('editors') if editor_id]
+
+        if self.name is None:
+            print(f"[ERROR]: Could not retrieve publication for the given id ({self.publication_id}). Please check if this publication exists.")
+            print(f"[ERROR]: Link to unknown publication: https://medium.com/u/{self.publication_id}")
     
    
     def articles_from_ids(self, article_ids):
@@ -219,12 +238,14 @@ class Publication:
                         get_resp=self.__get_resp, 
                         fetch_articles=self.__fetch_articles,
                         fetch_users = self.__fetch_users,
+                        fetch_publications=self.__fetch_publications,
+                        fetch_lists=self.__fetch_lists,
                     )
                 for article_id in article_ids]
     
     
     @lru_cache(maxsize=16)
-    def get_articles_between(self, _from=None, _to=None):
+    def get_articles_between(self, _from=None, _to=None, content=False, markdown=False, html=False, html_fullpage=True, html_style_file=SAMPLE_STYLE_FILE):
         """To get publication articles within a datetime range.
 
             Example usage:
@@ -235,6 +256,19 @@ class Publication:
             _from (datetime.datetime): Starting date of the interval
 
             _to (datetime.datetime): Ending date of the interval
+
+            content (bool, optional): Set it to `True` if you want to fetch the 
+                textual content of the article as well. Otherwise, default is `False`.
+
+            markdown(bool, optional): Set it to `True` if you want to fetch the markdown of 
+                the article as well. Otherwise, default is `False`
+
+            html(bool, optional): Set it to `True` if you want to fetch the article in HTML 
+                format as well. Otherwise, default is `False`
+
+            html_fullpage(bool, optional): Set it to `False` if you only want to fetch the HTML 
+                inside body tag of the article. Otherwise, default is `True`, which fetches the 
+                entire HTML of the article.
 
         Returns:
             list[Article]: Returns a list of Article Objects (publication articles).
@@ -265,7 +299,14 @@ class Publication:
                     articles += self.articles_from_ids(resp['publication_articles'][::-1])
                     next_to = datetime.strptime(resp['to'], '%Y-%m-%d %H:%M:%S')
             
-                self.__fetch_articles(articles)
+                self.__fetch_articles(
+                                articles, 
+                                content=content,
+                                markdown=markdown, 
+                                html=html, 
+                                html_fullpage=html_fullpage,
+                                html_style_file=html_style_file
+                            )
 
                 self.__articles = [article for article in articles if (_to <= article.published_at <= _from)]
 
@@ -275,7 +316,14 @@ class Publication:
         else:
             resp,_ = self.__get_resp(f'/publication/{self._id}/articles?from={_from.isoformat()}')
             self.__articles = self.articles_from_ids(resp['publication_articles'])
-            self.__fetch_articles(self.__articles)
+            self.__fetch_articles(
+                        self.__articles,
+                        content=content,
+                        markdown=markdown, 
+                        html=html, 
+                        html_fullpage=html_fullpage,
+                        html_style_file=html_style_file
+                    )
         
         return self.__articles
     
@@ -295,3 +343,6 @@ class Publication:
             self.__articles = self.get_articles_between()
         
         return self.__articles
+    
+    def __repr__(self):
+        return f"<Publication: {self.publication_id}>"

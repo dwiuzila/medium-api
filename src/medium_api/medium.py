@@ -6,17 +6,22 @@ different functions provided in it.
 
 import time
 import re
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 from http.client import HTTPSConnection
-from ujson import loads
+from json import loads
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from medium_api._topfeeds import TopFeeds
+from medium_api._recommended_feed import RecommendedFeed
+from medium_api._recommended_users import RecommendedUsers
+# from medium_api._recommended_lists import RecommendedLists
+from medium_api._archived_articles import ArchivedArticles
 from medium_api._user import User
-from medium_api._article import Article
+from medium_api._article import Article, SAMPLE_STYLE_FILE
 from medium_api._publication import Publication
 from medium_api._top_writers import TopWriters
 from medium_api._latestposts import LatestPosts
+from medium_api._medium_list import MediumList
 
 class Medium:
     """Main Medium API Class to access everything
@@ -54,17 +59,21 @@ class Medium:
         See https://docs.rapidapi.com/docs/keys to learn more about RapidAPI keys.
 
     """
-    def __init__(self, rapidapi_key:str, base_url:str='medium2.p.rapidapi.com', calls:int=0):
-        self.headers = {
-            'X-RapidAPI-Key': rapidapi_key,
-            'User-Agent': f"medium-api-python-sdk"
-        }
-        self.base_url = base_url
-        self.calls = calls
+    def __init__(self, rapidapi_key:str, base_url:str='medium2.p.rapidapi.com', endpoint_prefix = '', calls:int=0):
+        if rapidapi_key and isinstance(rapidapi_key, str):
+            self.headers = {
+                'X-RapidAPI-Key': rapidapi_key,
+                'User-Agent': f"medium-api-python-sdk"
+            }
+            self.base_url = base_url
+            self.endpoint_prefix = endpoint_prefix
+            self.calls = calls
+        else:
+            print('[ERROR]: Please pass the API Key in string format')
 
     def __get_resp(self, endpoint:str, retries:int=0):
         conn = HTTPSConnection(self.base_url)
-        conn.request('GET', endpoint, headers=self.headers)
+        conn.request('GET', self.endpoint_prefix + endpoint, headers=self.headers)
         resp = conn.getresponse()
 
         data = resp.read()
@@ -87,6 +96,8 @@ class Medium:
             print(f'[ERROR]: Status Code: {status}')
             print(f'[ERROR]: Response: {data}')
             return {}, status
+
+    # Main Functions
 
     def user(self, username:str = None, user_id:str = None, save_info:bool = True):
         """For getting the Medium User Object
@@ -114,7 +125,7 @@ class Medium:
                 `True`)
 
         Returns:
-            User: Medium API's User Object (medium_api.user.User) that can be used 
+            User: Medium API's User Object (medium_api._user.User) that can be used 
             to access all the properties and methods associated to the given Medium
             user.
 
@@ -122,19 +133,24 @@ class Medium:
             You have to provide either `username` or `user_id` to get the User object. You
             cannot omit both. 
         """
-        if user_id is not None:
+        if user_id:
             return User(user_id = user_id, 
                         get_resp = self.__get_resp, 
                         fetch_articles=self.fetch_articles,
                         fetch_users=self.fetch_users,
+                        fetch_publications=self.fetch_publications,
+                        fetch_lists=self.fetch_lists,
                         save_info = save_info)
-        elif username is not None:
+        
+        elif username:
             resp, _ = self.__get_resp(f'/user/id_for/{str(username)}')
             user_id = resp['id']
             return User(user_id = user_id, 
                         get_resp = self.__get_resp, 
                         fetch_articles=self.fetch_articles,
                         fetch_users=self.fetch_users,
+                        fetch_publications=self.fetch_publications,
+                        fetch_lists=self.fetch_lists,
                         save_info = save_info)
         else:
             print('[ERROR]: Missing parameter: Please provide "user_id" or "username" to call the function')
@@ -158,7 +174,7 @@ class Medium:
                 `True`)
 
         Returns:
-            Article: Medium API `Article` Object (medium_api.article.Article) that can be
+            Article: Medium API `Article` Object (medium_api._article.Article) that can be
             used to access all the properties and methods related to a Medium Article.
 
         """
@@ -166,6 +182,38 @@ class Medium:
                        get_resp = self.__get_resp, 
                        fetch_articles=self.fetch_articles,
                        fetch_users = self.fetch_users,
+                       fetch_publications=self.fetch_publications,
+                       fetch_lists=self.fetch_lists,
+                       save_info = save_info)
+    
+    def list(self, list_id:str, save_info:bool = True):
+        """For getting the Medium List Object
+
+            Typical usage example:
+
+            ``medium_list = medium.list(list_id = "38f9e0f9bea6")``
+
+        Args:
+            list_id (str): It's the unique hash at the end of every Medium List URL.
+                You can see it at the end of URL as shown below:
+
+                - https://nishu-jain.medium.com/list/medium-api-38f9e0f9bea6
+
+            save_info (bool, optional): If `False`, creates an empty `Medium List` object which
+                needs to be filled using ``medium_list.save_info()`` method later. (Default is 
+                `True`)
+
+        Returns:
+            MediumList: Medium API `Medium List` Object (medium_api._medium_list.MediumList) that can be
+            used to access all the properties and methods related to a Medium List.
+
+        """
+        return MediumList(list_id = list_id, 
+                       get_resp = self.__get_resp, 
+                       fetch_articles=self.fetch_articles,
+                       fetch_users = self.fetch_users,
+                       fetch_publications=self.fetch_publications,
+                       fetch_lists=self.fetch_lists,
                        save_info = save_info)
 
     def publication(self, publication_slug:str = None, publication_id:str = None, save_info:bool = True):
@@ -189,7 +237,7 @@ class Medium:
                 `True`)
 
         Returns:
-            Publication: Medium API `Publication` Object (medium_api.publication.Publication) 
+            Publication: Medium API `Publication` Object (medium_api._publication.Publication) 
             that can be used to access all the properties and methods related to a Medium 
             Publication.
 
@@ -198,26 +246,32 @@ class Medium:
             You cannot omit both. 
 
         """
-        if publication_id is not None:
+        if publication_id:
             return Publication(publication_id = publication_id, 
                         get_resp = self.__get_resp, 
                         fetch_articles=self.fetch_articles,
                         fetch_users=self.fetch_users,
+                        fetch_publications=self.fetch_publications,
+                        fetch_lists=self.fetch_lists,
                         save_info = save_info)
 
-        elif publication_slug is not None:
+        elif publication_slug:
             resp, _ = self.__get_resp(f'/publication/id_for/{str(publication_slug)}')
             publication_id = resp['publication_id']
             return Publication(publication_id = publication_id, 
                         get_resp = self.__get_resp, 
                         fetch_articles=self.fetch_articles,
                         fetch_users=self.fetch_users,
+                        fetch_publications=self.fetch_publications,
+                        fetch_lists=self.fetch_lists,
                         save_info = save_info)
         else:
             print('[ERROR]: Missing parameter: Please provide "publication_id" or "publication_slug" to call this function')
             return None
 
-    def top_writers(self, topic_slug:str):
+    # Platform/Misc Functions
+    
+    def top_writers(self, topic_slug:str, count:int = 100):
         """For getting the Medium's TopWriters Object
 
             Typical usage example:
@@ -228,16 +282,22 @@ class Medium:
             topic_slug (str): It's a string (smallcase, hyphen-separated) which specifies
                 a category/niche as classified by the Medium Platform.
 
+            count (int): Number of Top writers you want to fetch (less than 250).
+
         Returns:
-            TopWriters: Medium API `TopWriters` Object (medium_api.top_writers.TopWriters) 
+            TopWriters: Medium API `TopWriters` Object (medium_api._top_writers.TopWriters) 
             that can be used to access all the properties and methods related to Medium's 
             Top Writers for the give `topic_slug`.
 
         """
         return TopWriters(topic_slug=topic_slug, 
+                          count = count,
                           get_resp=self.__get_resp, 
                           fetch_users=self.fetch_users,
-                          fetch_articles=self.fetch_articles)
+                          fetch_articles=self.fetch_articles,
+                          fetch_publications=self.fetch_publications,
+                          fetch_lists=self.fetch_lists,
+                          )
 
     def latestposts(self, topic_slug:str):
         """For getting the Medium's LatestPosts Object
@@ -251,7 +311,7 @@ class Medium:
                 a category/niche as classified by the Medium Platform.
 
         Returns:
-            LatestPosts: Medium API `LatestPosts` Object (medium_api.latestposts.LatestPosts) 
+            LatestPosts: Medium API `LatestPosts` Object (medium_api._latestposts.LatestPosts) 
             that can be used to access all the properties and methods related to Medium's 
             LatestPosts within the given topic.
 
@@ -260,6 +320,8 @@ class Medium:
                            get_resp=self.__get_resp, 
                            fetch_articles=self.fetch_articles,
                            fetch_users=self.fetch_users,
+                           fetch_publications=self.fetch_publications,
+                           fetch_lists=self.fetch_lists,
                         )
 
     def topfeeds(self, tag:str, mode:str):
@@ -284,16 +346,45 @@ class Medium:
 
 
         Returns:
-            TopFeeds: Medium API `TopFeeds` Object (medium_api.topfeeds.TopFeeds) 
+            TopFeeds: Medium API `TopFeeds` Object (medium_api._topfeeds.TopFeeds) 
             that can be used to access all the properties and methods, for given `tag` 
             and `mode`.
 
         """
-        return TopFeeds(tag=tag, mode=mode, 
+        return TopFeeds(tag=tag, mode=mode,
                         get_resp=self.__get_resp, 
                         fetch_articles=self.fetch_articles,
-                        fetch_users=self.fetch_users)
+                        fetch_users=self.fetch_users,
+                        fetch_publications=self.fetch_publications,
+                        fetch_lists=self.fetch_lists,
+                    )
+    
+    def recommended_feed(self, tag:str, count:int = 25):
+        """For getting the Medium's RecommendedFeed Object
 
+            Typical usage example:
+
+            ``recommended_feed = medium.recommended_feed(tag="blockchain", count=100)``
+
+        Args:
+            tag (str): It's a string (smallcase, hyphen-separated) which specifies
+                a category/niche as classified by the Medium Platform.
+            
+            count (int): Number of articles you want to fetch from recommended feed (Should be less than 500).
+
+        Returns:
+            RecommendedFeed: Medium API `RecommendedFeed` Object (medium_api._recommended_feed.RecommendedFeed) 
+            that can be used to access all the properties and methods, for given `tag`.
+
+        """
+        return RecommendedFeed(tag=tag, count=count,
+                        get_resp=self.__get_resp, 
+                        fetch_articles=self.fetch_articles,
+                        fetch_users=self.fetch_users,
+                        fetch_publications=self.fetch_publications,
+                        fetch_lists=self.fetch_lists,
+                    )
+    
     def related_tags(self, given_tag:str):
         """For getting the list of related tags
 
@@ -302,7 +393,7 @@ class Medium:
             ``related_tags = medium.related_tag(given_tag="blockchain")``
 
         Args:
-            given_tag (str): It's a string (smallcase, hyphen-separated) which specifies
+            given_tag (str): It's a string (lowercase, hyphen-separated) which specifies
                              a category/niche as classified by the Medium Platform.
 
         Returns:
@@ -312,9 +403,294 @@ class Medium:
         resp, _ = self.__get_resp(f'/related_tags/{given_tag}')
 
         return resp['related_tags']
+    
+    def tag_info(self, tag:str):
+        """To get the tag-related information
 
-    def fetch_articles(self, articles:list, max_len:int = None, content:bool = False, markdown:bool = False):
-        """To quickly fetch articles (info, content, and markdown) using multithreading
+            Typical usage example:
+
+            ``blockchain_tag = medium.tag_info(given_tag="blockchain")``
+
+        Args:
+            tag (str): It's a string (lowercase, hyphen-separated) which specifies
+                       a category/niche as classified by the Medium Platform.
+
+        Returns:
+            dict: Contains tag-related information
+
+        """
+        resp, _ = self.__get_resp(f'/tag/{tag}')
+
+        return resp
+    
+    def recommended_users(self, tag:str):
+        """For getting the Medium's RecommendedUsers Object
+
+            Typical usage example:
+
+            ``recommended_users = medium.recommended_users(tag="data-science")``
+
+        Args:
+            tag (str): It's a string (smallcase, hyphen-separated) which specifies
+                a category/niche as classified by the Medium Platform.
+
+        Returns:
+            RecommendedUsers: Medium API `RecommendedUsers` Object (medium_api._recommended_users.RecommendedUsers) 
+            that can be used to access all the properties and methods, for given `tag`.
+
+        """
+        return RecommendedUsers(tag=tag, 
+                                get_resp=self.__get_resp, 
+                                fetch_articles=self.fetch_articles,
+                                fetch_users=self.fetch_users,
+                                fetch_publications=self.fetch_publications,
+                                fetch_lists=self.fetch_lists,
+                            )
+    
+    # def recommended_lists(self, tag:str):
+    #     """For getting the Medium's RecommendedLists Object
+
+    #         Typical usage example:
+
+    #         ``recommended_lists = medium.recommended_lists(tag="artificial-intelligence")``
+
+    #     Args:
+    #         tag (str): It's a string (smallcase, hyphen-separated) which specifies
+    #             a category/niche as classified by the Medium Platform.
+
+    #     Returns:
+    #         RecommendedLists: Medium API `RecommendedLists` Object (medium_api._recommended_lists.RecommendedLists) 
+    #         that can be used to access all the properties and methods, for given `tag`.
+
+    #     """
+    #     return RecommendedLists(tag=tag, 
+    #                             get_resp=self.__get_resp, 
+    #                             fetch_articles=self.fetch_articles,
+    #                             fetch_users=self.fetch_users,
+    #                             fetch_publications=self.fetch_publications,
+    #                             fetch_lists=self.fetch_lists,
+    #                         )
+    
+    def archived_articles(self, tag:str, count:int = 20, year:str = "", month:str = "", next:str = ""):
+        """
+        For getting the Medium's ArchivedArticles Object
+            
+            Typical usage example:
+
+            ``archived_articles = medium.archived_articles(tag="artificial-intelligence", count=100)``
+        
+        Args:
+            tag (str): It's a string (smallcase, hyphen-separated) which specifies
+                a category/niche as classified by the Medium Platform.
+
+            count (int): Number of archived articles you want to fetch.
+
+            year (str, optional): It's the year for which you want to fetch the archived articles.
+                If not provided, it fetches articles for 'all_years'.
+
+            month (str, optional): It's the month for which you want to fetch the archived articles.
+                If not provided, it fetches the articles for 'all_months'.
+
+            next (str, optional): It's the hash id of the last article fetched in the previous call.
+                If provided, it fetches the next set of articles.
+
+        Returns:
+            ArchivedArticles: Medium API `ArchivedArticles` Object (medium_api._archived_articles.ArchivedArticles) 
+            that can be used to access all the properties and methods, for given `tag`.
+
+        """
+        return ArchivedArticles(tag=tag, count=count, year=year, month=month, next=next,
+                                get_resp=self.__get_resp, 
+                                fetch_articles=self.fetch_articles,
+                                fetch_users=self.fetch_users,
+                                fetch_publications=self.fetch_publications,
+                                fetch_lists=self.fetch_lists,
+                            )
+    
+    def root_tags(self):
+        """To get the list of root tags
+
+            Typical usage example:
+
+            ``root_tags = medium.root_tags()``
+
+        Returns:
+            list[str]: List of Root Tags (strings).
+
+        """
+        resp, _ = self.__get_resp(f'/root_tags')
+
+        return resp['root_tags']
+
+    # Search Functions
+
+    def search_articles(self, query:str, save_info:bool=False):
+        """To get the list of `Articles` for the given search query, from the Medium Platform.
+
+            Typical usage example:
+
+            ``ai_articles = medium.search_articles(query = "artificial intelligence")``
+
+        Args:
+            query (str): It's the search query to get results from Medium Platform.
+
+            save_info (bool, optional): If `True`, the function will fetch article-related info for all the
+                articles in the search result, using multi-threading. Else, the returned list will contain
+                the empty `Article` objects. Default is `False`.
+
+        Returns:
+            list[Article]: List of `Article` objects from the search results.
+
+        Note:
+            The resultant list will contain 1000 `Article` objects at max.
+        
+        Warnings:
+            OveruseWarning: Don't set ``save_info = True`` unless you have enough API calls in your subscribed plan. You might either exhaust your current plan or incur overage.
+        """
+        resp, _ = self.__get_resp(f'/search/articles?query={quote(query)}')
+
+        article_ids = resp['articles']
+        articles = []
+
+        if article_ids:
+            articles = [self.article(article_id=article_id, save_info=False) for article_id in article_ids]
+            if save_info:
+                self.fetch_articles(articles)
+
+        return articles
+    
+    def search_publications(self, query:str, save_info:bool=False):
+        """To get the list of `Publications` for the given search query, from the Medium Platform.
+
+            Typical usage example:
+
+            ``mental_health_pubs = medium.search_publications(query = "mental health")``
+
+        Args:
+            query (str): It's the search query to get results from Medium Platform.
+
+            save_info (bool, optional): If `True`, the function will fetch publication-related info for all the
+                publications in the search result, using multi-threading. Else, the returned list will contain
+                the empty `Publication` objects. Default is `False`.
+
+        Returns:
+            list[Publication]: List of `Publication` objects from the search results.
+
+        Note:
+            The resultant list will contain 1000 `Publication` objects at max.
+        
+        Warnings:
+            OveruseWarning: Don't set ``save_info = True`` unless you have enough API calls in your subscribed plan. You might either exhaust your current plan or incur overage.
+        """
+        resp, _ = self.__get_resp(f'/search/publications?query={quote(query)}')
+
+        publication_ids = resp['publications']
+        publications = []
+        
+        if publication_ids:
+            publications = [self.publication(publication_id=publication_id, save_info=False) for publication_id in publication_ids]
+            if save_info:
+                self.fetch_publications(publications)
+
+        return publications
+    
+    def search_users(self, query:str, save_info:bool=False):
+        """To get the list of `Users` for the given search query, from the Medium Platform.
+
+            Typical usage example:
+
+            ``data_engineers = medium.search_users(query = "data engineer")``
+
+        Args:
+            query (str): It's the search query to get results from Medium Platform.
+
+            save_info (bool, optional): If `True`, the function will fetch user-related info for all the
+                users in the search result, using multi-threading. Else, the returned list will contain
+                the empty `User` objects. Default is `False`.
+
+        Returns:
+            list[User]: List of `User` objects from the search results.
+
+        Note:
+            The resultant list will contain 1000 `User` objects at max.
+        
+        Warnings:
+            OveruseWarning: Don't set ``save_info = True`` unless you have enough API calls in your subscribed plan. You might either exhaust your current plan or incur overage.
+        """
+        resp, _ = self.__get_resp(f'/search/users?query={quote(query)}')
+
+        user_ids = resp['users']
+        users = []
+        
+        if user_ids:
+            users = [self.user(user_id=user_id, save_info=False) for user_id in user_ids]
+            if save_info:
+                self.fetch_users(users)
+
+        return users
+    
+    def search_lists(self, query:str, save_info:bool=False):
+        """To get an array of `MediumList` objects for the given search query, from the Medium Platform.
+
+            Typical usage example:
+
+            ``startup_lists = medium.search_lists(query = "startup")``
+
+        Args:
+            query (str): It's the search query to get results from Medium Platform.
+
+            save_info (bool, optional): If `True`, the function will fetch List-related info for all the
+                Medium Lists in the search result, using multi-threading. Else, the returned array will contain
+                the empty `MediumList` objects. Default is `False`.
+
+        Returns:
+            list[MediumList]: Array of `MediumList` objects from the search results.
+
+        Note:
+            The resultant list will contain 1000 `MediumList` objects at max.
+        
+        Warnings:
+            OveruseWarning: Don't set ``save_info = True`` unless you have enough API calls in your subscribed plan. You might either exhaust your current plan or incur overage.
+        """
+        resp, _ = self.__get_resp(f'/search/lists?query={quote(query)}')
+
+        list_ids = resp['lists']
+        lists = []
+        
+        if list_ids:
+            lists = [self.list(list_id=list_id, save_info=False) for list_id in list_ids]
+            if save_info:
+                self.fetch_lists(lists)
+
+        return lists
+    
+    def search_tags(self, query:str):
+        """To get the list of tags for the given search query, from the Medium Platform.
+
+            Typical usage example:
+
+            ``blockchain_tags = medium.search_tags(query = "blockchain")``
+
+        Args:
+            query (str): It's the search query to get results from Medium Platform.
+
+        Returns:
+            list[str]: List of lowercased, hyphen-separated strings of tags
+
+        Note:
+            The resultant list will contain 1000 tags at max.
+        """
+        resp, _ = self.__get_resp(f'/search/tags?query={quote(query)}')
+
+        tags = resp['tags']
+
+        return tags if tags else []
+
+    # Extra Functions
+
+    def fetch_articles(self, articles:list, content:bool = False, markdown:bool = False, 
+                       html:bool = False, html_fullpage:bool = True, html_style_file:str = SAMPLE_STYLE_FILE, max_len:int = None):
+        """To quickly fetch articles (info, content, markdown, html) using multithreading
 
             Typical usage example:
 
@@ -326,31 +702,149 @@ class Medium:
             articles (list[Article]): List of (empty) Article objects to fill information 
                 (and content and markdown) into it.
 
-            max_len (int, optional): Maximum number of articles to fetch
-
             content (bool, optional): Set it to `True` if you want to fetch the content of 
                 the article as well. Otherwise, default is `False`
             
             markdown (bool, optional): Set it to `True` if you want to fetch the markdown of 
                 the article as well. Otherwise, default is `False`
 
+            markdown(bool, optional): Set it to `True` if you want to fetch the markdown of 
+                the article as well. Otherwise, default is `False`
+
+            html(bool, optional): Set it to `True` if you want to fetch the article in HTML 
+                format as well. Otherwise, default is `False`
+
+            html_fullpage(bool, optional): Set it to `False` if you only want to fetch the HTML 
+                inside body tag of the article. Otherwise, default is `True`, which fetches the 
+                entire HTML of the article.
+            
+            max_len (int, optional): Maximum number of articles to fetch
+
         Returns:
             None: This method doesn't return anything since it fills the values in the passed
             list of Article(s) objects itself.
 
         """
-        with ThreadPoolExecutor(max_workers=100) as executor:
-            future_to_url = [executor.submit(article.save_info) for article in articles[:max_len] if article.title is None]
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_url = [executor.submit(article.save_info) for article in articles if article.title is None]
             if content:
                 future_to_url += [executor.submit(article.save_content) for article in articles[:max_len]]
             if markdown:
                 future_to_url += [executor.submit(article.save_markdown) for article in articles[:max_len]]
 
+            if markdown:
+                future_to_url += [executor.submit(article.save_markdown) for article in articles]
+
+            if html:
+                future_to_url += [executor.submit(article.save_html, html_fullpage, html_style_file) for article in articles]
+
+            for future in as_completed(future_to_url):
+                future.result()
+    
+    def fetch_publications(self, publications:list):
+        """To quickly fetch publications' info using multithreading
+
+            Typical usage example:
+
+            ``medium.fetch_publications(user.publications)``
+            ``medium.fetch_publications(list_of_publications_obj)``
+
+        Args:
+
+            publications (list[Publication]): List of (empty) Publications objects to fill information into it.
+
+        Returns:
+            None: This method doesn't return anything since it fills the values in the passed
+            list of Publication(s) objects itself.
+
+        """
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_url = [executor.submit(publication.save_info) for publication in publications if publication.name is None]
+
+            for future in as_completed(future_to_url):
+                future.result()
+
+    def fetch_lists(self, medium_lists:list):
+        """To quickly fetch Medium List related info using multithreading
+
+            Typical usage example:
+
+            ``medium.fetch_lists(user.lists)``
+            ``medium.fetch_lists(arr_of_medium_list_objs)``
+
+        Args:
+
+            medium_lists (list[MediumList]): An array of (empty) `MediumList` objects to fill information into it.
+
+        Returns:
+            None: This method doesn't return anything since it fills the values in the passed
+            array of MediumList(s) objects itself.
+
+        """
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_url = [executor.submit(medium_list.save_info) 
+                             for medium_list in medium_lists 
+                             if medium_list.name is None]
+
+            if markdown:
+                future_to_url += [executor.submit(article.save_markdown) for article in articles]
+
+            if html:
+                future_to_url += [executor.submit(article.save_html, html_fullpage, html_style_file) for article in articles]
+
+            for future in as_completed(future_to_url):
+                future.result()
+    
+    def fetch_publications(self, publications:list):
+        """To quickly fetch publications' info using multithreading
+
+            Typical usage example:
+
+            ``medium.fetch_publications(user.publications)``
+            ``medium.fetch_publications(list_of_publications_obj)``
+
+        Args:
+
+            publications (list[Publication]): List of (empty) Publications objects to fill information into it.
+
+        Returns:
+            None: This method doesn't return anything since it fills the values in the passed
+            list of Publication(s) objects itself.
+
+        """
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_url = [executor.submit(publication.save_info) for publication in publications if publication.name is None]
+
+            for future in as_completed(future_to_url):
+                future.result()
+
+    def fetch_lists(self, medium_lists:list):
+        """To quickly fetch Medium List related info using multithreading
+
+            Typical usage example:
+
+            ``medium.fetch_lists(user.lists)``
+            ``medium.fetch_lists(arr_of_medium_list_objs)``
+
+        Args:
+
+            medium_lists (list[MediumList]): An array of (empty) `MediumList` objects to fill information into it.
+
+        Returns:
+            None: This method doesn't return anything since it fills the values in the passed
+            array of MediumList(s) objects itself.
+
+        """
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_url = [executor.submit(medium_list.save_info) 
+                             for medium_list in medium_lists 
+                             if medium_list.name is None]
+
             for future in as_completed(future_to_url):
                 future.result()
 
     def fetch_users(self, users:list, max_len:int = None):
-        """To quickly fetch users info using multithreading
+        """To quickly fetch users' info using multithreading
 
             Typical usage example:
 
@@ -367,7 +861,7 @@ class Medium:
             passed list of User(s) objects itself.
 
         """
-        with ThreadPoolExecutor(max_workers=100) as executor:
+        with ThreadPoolExecutor(max_workers=10) as executor:
             future_to_url = (executor.submit(user.save_info) for user in users[:max_len] if user.fullname is None)
 
             for future in as_completed(future_to_url):

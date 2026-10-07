@@ -2,6 +2,7 @@
 latestposts module
 """
 
+SAMPLE_STYLE_FILE = 'https://mediumapi.com/styles/dark.css'
 
 class LatestPosts:
     """LatestPosts Class
@@ -17,11 +18,14 @@ class LatestPosts:
         See :obj:`medium_api.medium.Medium.latestposts`.
 
     """
-    def __init__(self, topic_slug, get_resp, fetch_articles, fetch_users):
+    def __init__(self, topic_slug, get_resp, fetch_articles, fetch_users, fetch_publications, fetch_lists):
         self.topic_slug = str(topic_slug)
         self.__get_resp = get_resp
+        
         self.__fetch_articles = fetch_articles
         self.__fetch_users = fetch_users
+        self.__fetch_publications = fetch_publications
+        self.__fetch_lists = fetch_lists
 
         self.__ids = None
         self.__posts = None
@@ -58,22 +62,31 @@ class LatestPosts:
                                     get_resp=self.__get_resp, 
                                     fetch_articles=self.__fetch_articles,
                                     fetch_users = self.__fetch_users,
+                                    fetch_publications=self.__fetch_publications,
+                                    fetch_lists=self.__fetch_lists,
                                     save_info=False) 
                             for article_id in self.ids]
 
         return self.__posts 
 
-    def fetch_articles(self, max_len=None, content=False, markdown=False):
+    def fetch_articles(self, content=False, markdown=False, html=False, html_fullpage=True, html_style_file=SAMPLE_STYLE_FILE, max_len=None):
         """To fetch all the latestposts articles information (multithreading)
 
         Args:
-            max_len (int, optional): Maximum number of articles to fetch
-            
             content (bool, optional): Set it to `True` if you want to fetch the 
                 textual content of the article as well. Otherwise, default is `False`.
 
-            markdown (bool, optional): Set it to `True` if you want to fetch the markdown of 
+            markdown(bool, optional): Set it to `True` if you want to fetch the markdown of 
                 the article as well. Otherwise, default is `False`
+
+            html(bool, optional): Set it to `True` if you want to fetch the article in HTML 
+                format as well. Otherwise, default is `False`
+
+            html_fullpage(bool, optional): Set it to `False` if you only want to fetch the HTML 
+                inside body tag of the article. Otherwise, default is `True`, which fetches the 
+                entire HTML of the article.
+            
+            max_len (int, optional): Maximum number of articles to fetch
 
         Returns:
             None: All the fetched information will be access via latestposts.articles.
@@ -81,4 +94,16 @@ class LatestPosts:
             ``latestposts.articles[0].title``
             ``latestposts.articles[1].claps``
         """
-        self.__fetch_articles(self.articles, max_len=max_len, content=content, markdown=markdown)
+        self.__fetch_articles(
+                    self.articles, 
+                    content=content,
+                    markdown=markdown, 
+                    html=html, 
+                    html_fullpage=html_fullpage,
+                    html_style_file=html_style_file,
+                    max_len=max_len
+                )
+        
+    
+    def __repr__(self):
+        return f"<LatestPosts '{self.topic_slug}'>"

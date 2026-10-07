@@ -34,6 +34,12 @@ Publication class
 .. autoclass:: medium_api._publication.Publication
    :members:
 
+MediumList class
+^^^^^^^^^^^^^^^^^
+
+.. autoclass:: medium_api._medium_list.MediumList
+   :members:
+
 LatestPosts class
 ^^^^^^^^^^^^^^^^^
 
@@ -50,4 +56,28 @@ TopFeeds class
 ^^^^^^^^^^^^^^
 
 .. autoclass:: medium_api._topfeeds.TopFeeds
+   :members:
+
+RecommendedUsers class
+^^^^^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: medium_api._recommended_users.RecommendedUsers
+   :members:
+
+.. RecommendedLists class
+.. ^^^^^^^^^^^^^^^^^^^^^^
+
+.. .. autoclass:: medium_api._recommended_lists.RecommendedLists
+..    :members:
+
+RecommendedFeed class
+^^^^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: medium_api._recommended_feed.RecommendedFeed
+   :members:
+
+ArchivedArticles class
+^^^^^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: medium_api._archived_articles.ArchivedArticles
    :members:
